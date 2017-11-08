@@ -1,42 +1,18 @@
 __author__ = 'simon'
 from ctypes import *
 import argparse
+from crypto_support import *
 
 """функция тестирования криптоапи
 
 Пробует открыть контекст провайдера и узнать его имя.
 
 """
-# Константы для работы с криптоапи
-CRYPT_VERIFYCONTEXT = 0xF0000000
-PROV_GOST_2012_256 = 80
-PP_NAME = 4
 
 def test_cryptoapi():
-    # Загрузка библиотеки
-    # mydll = windll.LoadLibrary("C:\\Windows\\System32\\advapi32.dll")
-    mydll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi10.so.4.0.5")
-    # определение прототипа функции CryptAcquireContextA
-    fCryptAcquireContextA = mydll.CryptAcquireContextA
-    fCryptAcquireContextA.restype = c_bool
-    fCryptAcquireContextA.argtypes = [
-        POINTER(c_ulong),   # Parameters 1 ...
-        c_char_p,
-        c_char_p,
-        c_ulong,
-        c_ulong]
     # Получаем хэндл провайдера
     handle = c_ulong()
     fCryptAcquireContextA(byref(handle), None, None, PROV_GOST_2012_256, CRYPT_VERIFYCONTEXT)
-    # определение прототипа функции CryptGetProvParam
-    fCryptGetProvParam = mydll.CryptGetProvParam
-    fCryptGetProvParam.restype = c_bool
-    fCryptGetProvParam.argtypes = [
-        c_ulong,   # Parameters 1 ...
-        c_ulong,
-        POINTER(c_ubyte),
-        POINTER(c_ulong),
-        c_ulong]
     # Получаем длину строки имени
     cbData = c_ulong()
     fCryptGetProvParam(handle, PP_NAME, None, byref(cbData), 0)
@@ -46,51 +22,6 @@ def test_cryptoapi():
     fCryptGetProvParam(handle, PP_NAME, pbData, byref(cbData), 0)
     provname = cast(pbData, c_char_p)
     print(provname.value)
-
-# Определение всех необходимых для получения расширения структур (смотри msdn на szOID_SUBJECT_ALT_NAME2)
-class CRYPT_DATA_BLOB(Structure):
-    _fields_ = [("cbData", c_ulong),
-                ("pbData", POINTER(c_ubyte))]
-
-class CERT_OTHER_NAME(Structure):
-    _fields_ = [("pszObjId", c_char_p),
-                ("Value", CRYPT_DATA_BLOB)]
-
-class CERT_ALT_NAME_ENTRY_UNION(Union):
-    _fields_ = [("pOtherName", POINTER(CERT_OTHER_NAME)),
-                ("pwszRfc822Name", c_wchar_p),
-                ("pwszDNSName", c_wchar_p),
-                ("DirectoryName", CRYPT_DATA_BLOB),
-                ("pwszURL", c_wchar_p),
-                ("IPAddress", CRYPT_DATA_BLOB),
-                ("pszRegisteredID", c_char_p)]
-
-class CERT_ALT_NAME_ENTRY(Structure):
-    _anonymous_ = ("u",)
-    _fields_ = [("dwAltNameChoice", c_ulong),
-                ("u", CERT_ALT_NAME_ENTRY_UNION)]
-
-class CERT_ALT_NAME_INFO(Structure):
-    _fields_ = [("cAltEntry", c_ulong),
-                ("rgAltEntry", POINTER(CERT_ALT_NAME_ENTRY))]
-
-class CERT_EXTENSION(Structure):
-    _fields_ = [("pszObjId", c_char_p),
-                ("fCritical", c_bool),
-                ("Value", CRYPT_DATA_BLOB)]
-
-class CERT_EXTENSIONS(Structure):
-    _fields_ = [("cExtension", c_ulong),
-                ("rgExtension", POINTER(CERT_EXTENSION))]
-
-# Определения констант
-CERT_ALT_NAME_REGISTERED_ID = 9
-CERT_ALT_NAME_DNS_NAME = 3
-X509_ASN_ENCODING = 0x00000001
-PKCS_7_ASN_ENCODING = 0x00010000
-X509_ALTERNATE_NAME = 12
-szOID_CERT_EXTENSIONS = "1.3.6.1.4.1.311.2.1.14"
-szOID_SUBJECT_ALT_NAME2 = "2.5.29.17"
 
 """функция получения закодированного расшириения с dns-именами
 
@@ -103,18 +34,6 @@ output_file - имя файла для итоговой записи
 """
 
 def create_ext(dns_names, output_file):
-    # Открываем библиотеку
-    # mydll = windll.LoadLibrary("C:\\Windows\\System32\\crypt32.dll")
-    mydll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi20.so.4.0.5")
-    # Определяем прототип функции CryptEncodeObject
-    fCryptEncodeObject = mydll.CryptEncodeObject
-    fCryptEncodeObject.restype = c_bool
-    fCryptEncodeObject.argtypes = [
-        c_ulong,   # Parameters 1 ...
-        c_char_p,
-        c_void_p,
-        POINTER(c_ubyte),
-        POINTER(c_ulong)]
     # Создаём переменную для хранения CERT_ALT_NAME_INFO
     alt_name_info = CERT_ALT_NAME_INFO()
     # Инициализируем число dns-имён нулём
