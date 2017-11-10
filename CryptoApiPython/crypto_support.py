@@ -71,9 +71,13 @@ BYTE = c_ubyte
 X509_ASN_ENCODING = 0x00000001
 PKCS_7_ASN_ENCODING = 0x00010000
 CERT_COMPARE_ANY = 0
+CERT_COMPARE_NAME_STR_W = 8
 CERT_COMPARE_SHIFT = 16
+CERT_INFO_SUBJECT_FLAG = 7
 CERT_FIND_ANY = (CERT_COMPARE_ANY << CERT_COMPARE_SHIFT)
+CERT_FIND_SUBJECT_STR_W = CERT_COMPARE_NAME_STR_W << CERT_COMPARE_SHIFT | CERT_INFO_SUBJECT_FLAG
 CERT_X500_NAME_STR = 3
+CERT_CLOSE_STORE_FORCE_FLAG = 0x00000001
 
 class CRYPT_IDENTIFIER(Structure):
     _fields_ = [("pszObjId", LPSTR),
@@ -176,3 +180,14 @@ fCertNameToStrA.argtypes = [
     DWORD,
     LPSTR,
     DWORD]
+fCertDuplicateCertificateContext = crypt_dll.CertDuplicateCertificateContext
+fCertDuplicateCertificateContext.restype = POINTER(CERT_CONTEXT)
+fCertDuplicateCertificateContext.argtypes = [POINTER(CERT_CONTEXT)]
+fCertCloseStore = crypt_dll.CertCloseStore
+fCertCloseStore.restype = c_bool
+fCertCloseStore.argtypes = [
+    HCERTSTORE,
+    DWORD]
+fCertFreeCertificateContext = crypt_dll.CertFreeCertificateContext
+fCertFreeCertificateContext.restype = c_bool
+fCertFreeCertificateContext.argtypes = [POINTER(CERT_CONTEXT)]
