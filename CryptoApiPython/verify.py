@@ -3,6 +3,8 @@ __author__ = 'simon'
 from ctypes import *
 import argparse
 from crypto_support import *
+from base64 import b64decode
+import binascii
 
 
 def find_certs_subject_str(CertStore, dn):
@@ -80,16 +82,44 @@ def find_certs_in_store(store_name, dn):
         raise WinError()
     founded_certs_list = list()
     founded_certs_list += find_certs_subject_str(CertStore, dn)
+    return founded_certs_list, CertStore
+
+
+def verify_signature(signature_file_name):
+    pmessage = fCryptMsgOpenToDecode(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0, 0, 0, None, None)
+    if not pmessage:
+        raise WinError()
+    signature_file = open(signature_file_name, 'rb')
+    file_data = signature_file.read()
+    try:
+        file_data = b64decode(file_data)
+    except binascii.Error:
+        print("der, not base 64")
+    print(file_data)
+    print(len(file_data))
+    file_data_pointer = pointer((c_ubyte * len(file_data)).from_buffer_copy(file_data))
+    file_data_pointer = cast(file_data_pointer, POINTER(c_ubyte))
+    if not fCryptMsgUpdate(pmessage, file_data_pointer, len(file_data), TRUE):
+        raise WinError()
+    signers_count = DWORD()
+    size_of_count = sizeof(signers_count)
+    size_of_count = DWORD(size_of_count)
+    if not fCryptMsgGetParam(pmessage, CMSG_SIGNER_COUNT_PARAM, 0, byref(signers_count), byref(size_of_count)):
+        raise WinError()
+    print(signers_count)
+
+
+def verify(dn, signature_file):
+    # found certificates to check signature
+    founded_certs_list, CertStore = find_certs_in_store(b'My', dn)
+    #verify signature
+    verify_signature(signature_file)
+    #close contexts and store
+    for cert in founded_certs_list:
+        fCertFreeCertificateContext(cert)
     if not fCertCloseStore(CertStore, 0):
         fCertCloseStore(CertStore, CERT_CLOSE_STORE_FORCE_FLAG)
         raise Exception('CertCloseStore cannot close store gracefully')
-    for cert in founded_certs_list:
-        fCertFreeCertificateContext(cert)
-
-
-def verify(dn):
-    find_certs_in_store(b'My', dn)
-
 
 def main():
     # python3 verify.py --input <file> --dn <dn>
@@ -97,7 +127,7 @@ def main():
     parser.add_argument('-i', '--input', help='Input file')
     parser.add_argument('-d', '--dn', help='Certificate DName for filtering')
     args = parser.parse_args()
-    verify(args.dn)
+    verify(args.dn, args.input)
 
 
 if __name__ == '__main__':

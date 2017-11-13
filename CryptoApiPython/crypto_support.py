@@ -63,6 +63,7 @@ CERT_SYSTEM_STORE_CURRENT_USER = (CERT_SYSTEM_STORE_CURRENT_USER_ID << CERT_SYST
 CERT_SYSTEM_STORE_LOCAL_MACHINE = (CERT_SYSTEM_STORE_LOCAL_MACHINE_ID << CERT_SYSTEM_STORE_LOCATION_SHIFT)
 HCERTSTORE = c_void_p
 HCRYPTPROV = c_ulong
+HCRYPTMSG = c_void_p
 LPSTR = c_char_p
 LPCSTR = LPSTR
 LPWSTR = c_wchar_p
@@ -78,18 +79,25 @@ CERT_FIND_ANY = (CERT_COMPARE_ANY << CERT_COMPARE_SHIFT)
 CERT_FIND_SUBJECT_STR_W = CERT_COMPARE_NAME_STR_W << CERT_COMPARE_SHIFT | CERT_INFO_SUBJECT_FLAG
 CERT_X500_NAME_STR = 3
 CERT_CLOSE_STORE_FORCE_FLAG = 0x00000001
+TRUE = 1
+FALSE = 0
+CMSG_SIGNER_COUNT_PARAM = 5
+
 
 class CRYPT_IDENTIFIER(Structure):
     _fields_ = [("pszObjId", LPSTR),
                 ("Parameters", CRYPT_DATA_BLOB)]
 
+
 class FILETIME(Structure):
     _fields_ = [("dwLowDateTime", DWORD),
                 ("dwHighDateTime", DWORD)]
 
+
 class CERT_PUBLIC_KEY_INFO(Structure):
     _fields_ = [("Algorithm", CRYPT_IDENTIFIER),
                 ("PublicKey", CRYPT_DATA_BLOB)]
+
 
 class CERT_INFO(Structure):
     _fields_ = [("dwVersion", DWORD),
@@ -105,12 +113,23 @@ class CERT_INFO(Structure):
                 ("cExtension", DWORD),
                 ("rgExtension", POINTER(CERT_EXTENSION))]
 
+
 class CERT_CONTEXT(Structure):
     _fields_ = [("dwCertEncodingType", DWORD),
                 ("pbCertEncoded", POINTER(c_ubyte)),
                 ("cbCertEncoded", DWORD),
                 ("pCertInfo", POINTER(CERT_INFO)),
                 ("hCertStore", HCERTSTORE)]
+
+
+FN_CMSG_STREAM_OUTPUT = WINFUNCTYPE(c_void_p, POINTER(BYTE), DWORD, c_bool)
+
+
+class CMSG_STREAM_INFO(Structure):
+    _fields_ = [("cbContent", DWORD),
+                ("pfnStreamOutput", POINTER(FN_CMSG_STREAM_OUTPUT)),
+                ("pvArg", c_void_p)]
+
 
 # Загрузка библиотеки
 if os.name == 'nt':
@@ -191,3 +210,27 @@ fCertCloseStore.argtypes = [
 fCertFreeCertificateContext = crypt_dll.CertFreeCertificateContext
 fCertFreeCertificateContext.restype = c_bool
 fCertFreeCertificateContext.argtypes = [POINTER(CERT_CONTEXT)]
+fCryptMsgOpenToDecode = crypt_dll.CryptMsgOpenToDecode
+fCryptMsgOpenToDecode.restype = HCRYPTMSG
+fCryptMsgOpenToDecode.argtypes = [
+    DWORD,
+    DWORD,
+    DWORD,
+    HCRYPTPROV,
+    POINTER(CERT_INFO),
+    POINTER(CMSG_STREAM_INFO)]
+fCryptMsgUpdate = crypt_dll.CryptMsgUpdate
+fCryptMsgUpdate.restype = c_bool
+fCryptMsgUpdate.argtypes = [
+    HCRYPTMSG,
+    POINTER(BYTE),
+    DWORD,
+    c_bool]
+fCryptMsgGetParam = crypt_dll.CryptMsgGetParam
+fCryptMsgGetParam.restype = c_bool
+fCryptMsgGetParam.argtypes = [
+    HCRYPTMSG,
+    DWORD,
+    DWORD,
+    c_void_p,
+    POINTER(DWORD)]
