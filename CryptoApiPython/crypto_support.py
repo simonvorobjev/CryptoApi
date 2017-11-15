@@ -82,6 +82,11 @@ CERT_CLOSE_STORE_FORCE_FLAG = 0x00000001
 TRUE = 1
 FALSE = 0
 CMSG_SIGNER_COUNT_PARAM = 5
+CMSG_CERT_PARAM = 12
+CMSG_SIGNER_CERT_INFO_PARAM = 7
+CRYPT_E_ATTRIBUTES_MISSING = 0x8009100F
+CMSG_VERIFY_SIGNER_CERT = 2
+CMSG_CTRL_VERIFY_SIGNATURE_EX = 19
 
 
 class CRYPT_IDENTIFIER(Structure):
@@ -129,6 +134,14 @@ class CMSG_STREAM_INFO(Structure):
     _fields_ = [("cbContent", DWORD),
                 ("pfnStreamOutput", POINTER(FN_CMSG_STREAM_OUTPUT)),
                 ("pvArg", c_void_p)]
+
+
+class CMSG_CTRL_VERIFY_SIGNATURE_EX_PARA(Structure):
+    _fields_ = [("cbSize", DWORD),
+                ("hCryptProv", HCRYPTPROV),
+                ("dwSignerIndex", DWORD),
+                ("dwSignerType", DWORD),
+                ("pvSigner", c_void_p)]
 
 
 # Загрузка библиотеки
@@ -199,6 +212,12 @@ fCertNameToStrA.argtypes = [
     DWORD,
     LPSTR,
     DWORD]
+fCertCreateCertificateContext = crypt_dll.CertCreateCertificateContext
+fCertCreateCertificateContext.restype = POINTER(CERT_CONTEXT)
+fCertCreateCertificateContext.argtypes = [
+    DWORD,
+    POINTER(BYTE),
+    DWORD]
 fCertDuplicateCertificateContext = crypt_dll.CertDuplicateCertificateContext
 fCertDuplicateCertificateContext.restype = POINTER(CERT_CONTEXT)
 fCertDuplicateCertificateContext.argtypes = [POINTER(CERT_CONTEXT)]
@@ -234,3 +253,16 @@ fCryptMsgGetParam.argtypes = [
     DWORD,
     c_void_p,
     POINTER(DWORD)]
+fCertCompareCertificate = crypt_dll.CertCompareCertificate
+fCertCompareCertificate.restype = c_bool
+fCertCompareCertificate.argtypes = [
+    DWORD,
+    POINTER(CERT_INFO),
+    POINTER(CERT_INFO)]
+fCryptMsgControl = crypt_dll.CryptMsgControl
+fCryptMsgControl.restype = c_bool
+fCryptMsgControl.argtypes = [
+    HCRYPTMSG,
+    DWORD,
+    DWORD,
+    c_void_p]
