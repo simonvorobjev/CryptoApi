@@ -200,6 +200,7 @@ def verify_signature(signature_file_name, founded_certs_list):
                 print('Verification failed!')
             else:
                 print('Verified! Signature checked!')
+            fCertFreeCertificateContext(pcert_context)
 
 
 def verify(dn, signature_file):
