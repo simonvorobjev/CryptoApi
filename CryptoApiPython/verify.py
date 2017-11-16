@@ -204,6 +204,9 @@ def verify_signature(signature_file_name, founded_certs_list):
 
 
 def verify(dn, signature_file):
+    # check input parameter
+    if not signature_file:
+        raise Exception('No signature file!')
     # found certificates to check signature
     founded_certs_list, CertStore = find_certs_in_store(b'My', dn)
     # verify signature
