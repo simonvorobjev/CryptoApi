@@ -103,7 +103,10 @@ def find_certs_in_store(store_name, dn):
     # create certs list
     founded_certs_list = list()
     # search for certs
-    founded_certs_list += find_certs_subject_str(CertStore, dn)
+    if dn:
+        founded_certs_list += find_certs_subject_str(CertStore, dn)
+    else:
+        print('No dn specified!')
     return founded_certs_list, CertStore
 
 
