@@ -3,6 +3,14 @@ __author__ = 'simon'
 from ctypes import *
 import os
 
+# Загрузка библиотеки
+if os.name == 'nt':
+    crypt_dll = windll.LoadLibrary("C:\\Windows\\System32\\crypt32.dll")
+    capi10_dll = windll.LoadLibrary("C:\\Windows\\System32\\advapi32.dll")
+else:
+    crypt_dll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi20.so.4.0.5")
+    capi10_dll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi10.so.4.0.5")
+
 # Константы для работы с криптоапи
 CRYPT_VERIFYCONTEXT = 0xF0000000
 PROV_GOST_2012_256 = 80
@@ -64,6 +72,7 @@ CERT_SYSTEM_STORE_LOCAL_MACHINE = (CERT_SYSTEM_STORE_LOCAL_MACHINE_ID << CERT_SY
 HCERTSTORE = c_void_p
 HCRYPTPROV = c_ulong
 HCRYPTMSG = c_void_p
+NCRYPT_KEY_HANDLE = c_ulong
 LPSTR = c_char_p
 LPCSTR = LPSTR
 LPWSTR = c_wchar_p
@@ -82,11 +91,26 @@ CERT_CLOSE_STORE_FORCE_FLAG = 0x00000001
 TRUE = 1
 FALSE = 0
 CMSG_SIGNER_COUNT_PARAM = 5
+CMSG_CONTENT_PARAM = 2
 CMSG_CERT_PARAM = 12
+CMSG_SIGNED = 2
 CMSG_SIGNER_CERT_INFO_PARAM = 7
 CRYPT_E_ATTRIBUTES_MISSING = 0x8009100F
 CMSG_VERIFY_SIGNER_CERT = 2
 CMSG_CTRL_VERIFY_SIGNATURE_EX = 19
+CRYPT_ACQUIRE_CACHE_FLAG = 0x00000001
+CRYPT_ACQUIRE_COMPARE_KEY_FLAG = 0x00000004
+
+# public key
+szOID_CP_GOST_R3410EL = "1.2.643.2.2.19"
+szOID_CP_GOST_R3410_12_256 = "1.2.643.7.1.1.1.1"
+szOID_CP_GOST_R3410_12_512 = "1.2.643.7.1.1.1.2"
+# hash
+szOID_CP_GOST_R3411 = "1.2.643.2.2.9"
+szOID_CP_GOST_R3411_12_256 = "1.2.643.7.1.1.2.2"
+szOID_CP_GOST_R3411_12_512 = "1.2.643.7.1.1.2.3"
+szOID_OIWSEC_sha1 = "1.3.14.3.2.26"
+szOID_NIST_sha256 = "2.16.840.1.101.3.4.2.1"
 
 
 class CRYPT_IDENTIFIER(Structure):
@@ -95,8 +119,8 @@ class CRYPT_IDENTIFIER(Structure):
 
 
 class FILETIME(Structure):
-    _fields_ = [("dwLowDateTime", DWORD),
-                ("dwHighDateTime", DWORD)]
+    _fields_ = [("dwLowDateTime", c_uint),
+                ("dwHighDateTime", c_uint)]
 
 
 class CERT_PUBLIC_KEY_INFO(Structure):
@@ -127,7 +151,7 @@ class CERT_CONTEXT(Structure):
                 ("hCertStore", HCERTSTORE)]
 
 
-FN_CMSG_STREAM_OUTPUT = WINFUNCTYPE(c_void_p, POINTER(BYTE), DWORD, c_bool)
+FN_CMSG_STREAM_OUTPUT = CFUNCTYPE(c_void_p, POINTER(BYTE), DWORD, c_bool)
 
 
 class CMSG_STREAM_INFO(Structure):
@@ -143,14 +167,38 @@ class CMSG_CTRL_VERIFY_SIGNATURE_EX_PARA(Structure):
                 ("dwSignerType", DWORD),
                 ("pvSigner", c_void_p)]
 
+class CMSG_SIGNER_ENCODE_INFO_UNION(Union):
+    _fields_ = [("hCryptProv", HCRYPTPROV),
+                ("hNCryptKey", NCRYPT_KEY_HANDLE)]
 
-# Загрузка библиотеки
-if os.name == 'nt':
-    crypt_dll = windll.LoadLibrary("C:\\Windows\\System32\\crypt32.dll")
-    capi10_dll = windll.LoadLibrary("C:\\Windows\\System32\\advapi32.dll")
-else:
-    crypt_dll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi20.so.4.0.5")
-    capi10_dll = cdll.LoadLibrary("/opt/cprocsp/lib/amd64/libcapi10.so.4.0.5")
+class CRYPT_ATTRIBUTE(Structure):
+    _fields_ = [("pszObjId", LPSTR),
+                ("cValue", DWORD),
+                ("rgValue", POINTER(CRYPT_DATA_BLOB))]
+
+class CMSG_SIGNER_ENCODE_INFO(Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("cbSize", DWORD),
+                ("pCertInfo", POINTER(CERT_INFO)),
+                ("u", CMSG_SIGNER_ENCODE_INFO_UNION),
+                ("dwKeySpec", DWORD),
+                ("HashAlgorithm", CRYPT_IDENTIFIER),
+                ("pvHashAuxInfo", c_void_p),
+                ("cAuthAttr", DWORD),
+                ("rgAuthAttr", POINTER(CRYPT_ATTRIBUTE)),
+                ("cUnauthAttr", DWORD),
+                ("rgUnauthAttr", POINTER(CRYPT_ATTRIBUTE))]
+
+class CMSG_SIGNED_ENCODE_INFO(Structure):
+    _fields_ = [("cbSize", DWORD),
+                ("cSigners", DWORD),
+                ("rgSigners", POINTER(CMSG_SIGNER_ENCODE_INFO)),
+                ("cCertEncoded", DWORD),
+                ("rgCertEncoded", POINTER(CRYPT_DATA_BLOB)),
+                ("cCrlEncoded", DWORD),
+                ("rgCrlEncoded", POINTER(CRYPT_DATA_BLOB))]
+
+
 # определение прототипа функции CryptAcquireContextA
 fCryptAcquireContextA = capi10_dll.CryptAcquireContextA
 fCryptAcquireContextA.restype = c_bool
@@ -238,6 +286,15 @@ fCryptMsgOpenToDecode.argtypes = [
     HCRYPTPROV,
     POINTER(CERT_INFO),
     POINTER(CMSG_STREAM_INFO)]
+fCryptMsgOpenToEncode = crypt_dll.CryptMsgOpenToEncode
+fCryptMsgOpenToEncode.restype = HCRYPTMSG
+fCryptMsgOpenToEncode.argtypes = [
+    DWORD,
+    DWORD,
+    DWORD,
+    c_void_p,
+    LPSTR,
+    POINTER(CMSG_STREAM_INFO)]
 fCryptMsgUpdate = crypt_dll.CryptMsgUpdate
 fCryptMsgUpdate.restype = c_bool
 fCryptMsgUpdate.argtypes = [
@@ -266,3 +323,23 @@ fCryptMsgControl.argtypes = [
     DWORD,
     DWORD,
     c_void_p]
+fCryptAcquireCertificatePrivateKey = crypt_dll.CryptAcquireCertificatePrivateKey
+fCryptAcquireCertificatePrivateKey.restype = c_bool
+fCryptAcquireCertificatePrivateKey.argtypes = [
+    POINTER(CERT_CONTEXT),
+    DWORD,
+    c_void_p,
+    POINTER(HCRYPTPROV),
+    POINTER(DWORD),
+    POINTER(c_bool)]
+fCryptMsgClose = crypt_dll.CryptMsgClose
+fCryptMsgClose.restype = c_bool
+fCryptMsgClose.argtypes = [HCRYPTMSG]
+fCryptMsgCalculateEncodedLength = crypt_dll.CryptMsgCalculateEncodedLength
+fCryptMsgCalculateEncodedLength.restype = DWORD
+fCryptMsgCalculateEncodedLength.argtypes = [DWORD,
+                                            DWORD,
+                                            DWORD,
+                                            c_void_p,
+                                            LPSTR,
+                                            DWORD]
